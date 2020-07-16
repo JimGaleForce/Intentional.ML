@@ -9,42 +9,48 @@ namespace Test.Intentional.ML
     public class UnitTest1
     {
         [TestMethod]
-        public void TestPredictWithOutput()
+        public void TestTextPredictWithOutput()
         {
-            var intention = new ML<MyRow, bool>();
+            var intention = new ML<MyTextRow, bool>();
 
-            IEnumerable<MyRow> data = GetTextData();
+            IEnumerable<MyTextRow> data = GetTextData();
             var msg = "Parking is terrible";
 
-            var result = intention.LearnFrom(data).PredictWithOutput(new MyRow { Text = msg });
+            var result = intention.Using(MLType.TextFeaturizingEstimator)
+                .LearnFrom(data)
+                .PredictWithOutput(new MyTextRow { Text = msg });
             Assert.IsTrue(result.Prediction);
         }
 
         [TestMethod]
-        public void TestPredict()
+        public void TestTextPredict()
         {
-            var intention = new ML<MyRow, bool>();
+            var intention = new ML<MyTextRow, bool>();
 
-            IEnumerable<MyRow> data = GetTextData();
+            IEnumerable<MyTextRow> data = GetTextData();
             var msg = "Parking is terrible";
 
-            var result = intention.LearnFrom(data).Predict(new MyRow { Text = msg });
+            var result = intention.Using(MLType.TextFeaturizingEstimator)
+                .LearnFrom(data)
+                .Predict(new MyTextRow { Text = msg });
             Assert.IsTrue(result);
         }
 
         [TestMethod]
-        public void TestPredictAndSet()
+        public void TestTextPredictAndSet()
         {
-            var intention = new ML<MyRow, bool>();
+            var intention = new ML<MyTextRow, bool>();
 
-            IEnumerable<MyRow> data = GetTextData();
+            IEnumerable<MyTextRow> data = GetTextData();
             var msg = "Parking is terrible";
 
-            var result = intention.LearnFrom(data).PredictAndSet(new MyRow { Text = msg });
+            var result = intention.Using(MLType.TextFeaturizingEstimator)
+                .LearnFrom(data)
+                .PredictAndSet(new MyTextRow { Text = msg });
             Assert.IsTrue(result.Label);
         }
 
-        public IEnumerable<MyRow> GetTextData()
+        public IEnumerable<MyTextRow> GetTextData()
         {
             var data = "0   Great Pizza\n" +
                 "0   Awesome customer service\n" +
@@ -68,14 +74,58 @@ namespace Test.Intentional.ML
                 "1   Overpriced and was shocked that utensils were an upcharge";
 
             return data.Split(new char[] { '\n' }, System.StringSplitOptions.RemoveEmptyEntries)
-                .Select(line => new MyRow { Label = line.StartsWith("1"), Text = line.Substring(4) });
+                .Select(line => new MyTextRow { Label = line.StartsWith("1"), Text = line.Substring(4) });
+        }
+
+        [TestMethod]
+        public void TestLinearPredictWithOutput()
+        {
+            var intention = new ML<MyLinearRow, float>();
+
+            IEnumerable<MyLinearRow> data = GetFloatData();
+
+            var result = intention.Using(MLType.LightGbm)
+                .WhereScoreIs("Score")
+                .LearnFrom(data)
+                .PredictWithOutput(new MyLinearRow { Val1 = 1, Val2 = 0, Val3 = 0 });
+            var i = 0;
+        }
+
+        public IEnumerable<MyLinearRow> GetFloatData()
+        {
+            var data = "1 0 0 1; 1 1 1 1; 0 1 1 0; 0 0 0 0; 0 1 0 0; 0 0 1 0; 1 0 1 1; 1 1 0 1";
+            return data.Split(new char[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries)
+                .Select(line =>
+                {
+                    var parts = line.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    return new MyLinearRow
+                    {
+                        Val1 = float.Parse(parts[0]),
+                        Val2 = float.Parse(parts[1]),
+                        Val3 = float.Parse(parts[2]),
+                        Label = float.Parse(parts[3])
+                    };
+                });
         }
     }
 
-    public class MyRow
+    public class MyTextRow
     {
         public bool Label { get; set; }
 
         public string Text { get; set; }
+    }
+
+    public class MyLinearRow
+    {
+        public float Val1 { get; set; }
+
+        public float Val2 { get; set; }
+
+        public float Val3 { get; set; }
+
+        public float Label { get; set; }
+
+        public float Score { get; set; }
     }
 }
