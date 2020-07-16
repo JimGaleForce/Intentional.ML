@@ -3,7 +3,9 @@ using Microsoft.ML.Calibrators;
 using Microsoft.ML.Data;
 using Microsoft.ML.Trainers;
 using Microsoft.ML.Trainers.LightGbm;
+using Microsoft.ML.Transforms;
 using Microsoft.ML.Transforms.Text;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -30,6 +32,10 @@ namespace Intentional.ML
         public string inputName { get; set; } = "Text";
 
         public string scoreName { get; set; } = "Score";
+
+        public string featuresName { get; set; } = "Features";
+
+        public bool isFeaturesIncluded { get; set; } = false;
 
         public string modelName { get; set; } = "_model";
 
@@ -59,6 +65,19 @@ namespace Intentional.ML
         public ML<T, T2> WhereScoreIs(string scoreName)
         {
             this.scoreName = scoreName;
+            return this;
+        }
+
+        public ML<T, T2> WhereFeaturesIs(string featuresName)
+        {
+            this.featuresName = featuresName;
+            this.isFeaturesIncluded = true;
+            return this;
+        }
+
+        public ML<T, T2> IncludingFeatures()
+        {
+            this.isFeaturesIncluded = true;
             return this;
         }
 
@@ -110,7 +129,10 @@ namespace Intentional.ML
                         .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                         .Select(p => p.Name);
                     //mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel")
-                    var pipeline = mlContext.Transforms.Concatenate("Features", fields.ToArray());
+
+                    var featurePipeline = this.isFeaturesIncluded
+                        ? null
+                        : mlContext.Transforms.Concatenate("Features", fields.ToArray());
 
                     var trainer = mlContext.Regression.Trainers
                         .LightGbm(new LightGbmRegressionTrainer.Options()
@@ -131,21 +153,37 @@ namespace Intentional.ML
                             FeatureColumnName = "Features"
                         });
 
-                    var pipeline2 = pipeline.Append(trainer);
+                    var pipeline2 = featurePipeline == null ? null : featurePipeline.Append(trainer);
 
-                    trainedModel = pipeline2.Fit(dataSplit.TrainSet);
-                    mlContext.Model.Save(trainedModel, dataSplit.TrainSet.Schema, this.modelName);
+                    if(pipeline2 == null)
+                    {
+                        trainedModel = trainer.Fit(dataSplit.TrainSet);
+                        mlContext.Model.Save(trainedModel, dataSplit.TrainSet.Schema, this.modelName);
 
-                    IDataView testSetTransform = trainedModel.Transform(dataSplit.TestSet);
+                        IDataView testSetTransform = trainedModel.Transform(dataSplit.TestSet);
 
-                    var crossValidationResults = mlContext.Regression
-                        .CrossValidate(trainingDataView, pipeline, numberOfFolds: 5, labelColumnName: this.labelName);
+                        var crossValidationResults = mlContext.Regression
+                            .CrossValidate(trainingDataView, trainer, numberOfFolds: 5, labelColumnName: this.labelName);
+                    }
+                    else
+                    {
+                        trainedModel = pipeline2.Fit(dataSplit.TrainSet);
+                        mlContext.Model.Save(trainedModel, dataSplit.TrainSet.Schema, this.modelName);
+
+                        IDataView testSetTransform = trainedModel.Transform(dataSplit.TestSet);
+
+                        var crossValidationResults = mlContext.Regression
+                            .CrossValidate(trainingDataView,
+                                           pipeline2,
+                                           numberOfFolds: 5,
+                                           labelColumnName: this.labelName);
+                    }
 
                     //this.modelMetrics = mlContext.Regression
                     //.Evaluate(data: testSetTransform,
                     //          labelColumnName: this.labelName,
                         //          scoreColumnName: this.scoreName);
-                    break;
+                        break;
                 }
             }
 
@@ -161,13 +199,15 @@ namespace Intentional.ML
             return this;
         }
 
-        public ML<T, T2> Load(string modelName)
+        public ML<T, T2> Load(string modelName = null)
         {
+            modelName = modelName ?? this.modelName;
             using(var stream = new FileStream(modelName, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 mlModel = mlContext.Model.Load(stream, out _);
             }
 
+            this.isTaught = true;
             this.isLoaded = true;
             return this;
         }
@@ -217,7 +257,7 @@ namespace Intentional.ML
         public T PredictAndSet(T input)
         {
             var prediction = this.PredictWithOutput(input);
-            input.GetType().GetProperty(this.labelName).SetValue(input, prediction.Prediction);
+            input.GetType().GetProperty(this.labelName).SetValue(input, prediction.Score);
             return input;
         }
 
@@ -248,5 +288,12 @@ namespace Intentional.ML
     public class PredictionOutput2
     {
         public float Score { get; set; }
+    }
+
+    public class MLFeatureAttribute : Attribute
+    {
+        private bool isFeature;
+
+        public MLFeatureAttribute(bool isFeature) { this.isFeature = isFeature; }
     }
 }
