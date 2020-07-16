@@ -93,7 +93,8 @@ namespace Test.Intentional.ML
 
         public IEnumerable<MyLinearRow> GetFloatData()
         {
-            var data = "1 0 0 1; 1 1 1 1; 0 1 1 0; 0 0 0 0; 0 1 0 0; 0 0 1 0; 1 0 1 1; 1 1 0 1";
+            var data0 = "1 0 0 1; 1 1 1 1; 0 1 1 0; 0 0 0 0; 0 1 0 0; 0 0 1 0; 1 0 1 1; 1 1 0 1";
+            var data = $"{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0};{data0}";
             return data.Split(new char[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries)
                 .Select(line =>
                 {
