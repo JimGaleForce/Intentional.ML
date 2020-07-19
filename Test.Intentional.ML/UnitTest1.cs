@@ -88,7 +88,8 @@ namespace Test.Intentional.ML
                 .WhereScoreIs("Score")
                 .LearnFrom(data)
                 .PredictWithOutput(new MyLinearRow { Val1 = 1, Val2 = 0, Val3 = 0 });
-            var i = 0;
+
+            Assert.IsTrue(result.Score > 0.75);
         }
 
         public IEnumerable<MyLinearRow> GetFloatData()
